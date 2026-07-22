@@ -1,4 +1,6 @@
-import { put } from "@vercel/blob";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { nanoid } from "nanoid";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -14,6 +16,10 @@ const FileSchema = z.object({
       message: "File type should be JPEG or PNG",
     }),
 });
+
+function getUploadDir() {
+  return process.env.UPLOAD_DIR ?? path.join(process.cwd(), "uploads");
+}
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -44,16 +50,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: errorMessage }, { status: 400 });
     }
 
-    const filename = (formData.get("file") as File).name;
-    const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const fileBuffer = await file.arrayBuffer();
+    const originalName = (formData.get("file") as File).name;
+    const ext = path.extname(originalName).replace(/[^a-zA-Z0-9.]/g, "");
+    const safeName = `${nanoid()}${ext}`;
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
 
     try {
-      const data = await put(`${safeName}`, fileBuffer, {
-        access: "public",
-      });
+      const uploadDir = getUploadDir();
+      await mkdir(/* turbopackIgnore: true */ uploadDir, { recursive: true });
+      await writeFile(
+        path.join(/* turbopackIgnore: true */ uploadDir, safeName),
+        fileBuffer
+      );
 
-      return NextResponse.json(data);
+      const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+
+      return NextResponse.json({
+        contentType: file.type,
+        pathname: originalName,
+        url: `${basePath}/api/uploads/${safeName}`,
+      });
     } catch {
       return NextResponse.json({ error: "Upload failed" }, { status: 500 });
     }

@@ -1,33 +1,14 @@
-import { customProvider, gateway } from "ai";
-import { isTestEnvironment } from "../constants";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { titleModel } from "./models";
 
-export const myProvider = isTestEnvironment
-  ? (() => {
-      const {
-        chatModel,
-        titleModel: mockTitleModel,
-      } = require("./models.mock");
-      return customProvider({
-        languageModels: {
-          "chat-model": chatModel,
-          "title-model": mockTitleModel,
-        },
-      });
-    })()
-  : null;
+const openrouter = createOpenRouter({
+  apiKey: process.env.OPENROUTER_API_KEY,
+});
 
 export function getLanguageModel(modelId: string) {
-  if (isTestEnvironment && myProvider) {
-    return myProvider.languageModel(modelId);
-  }
-
-  return gateway.languageModel(modelId);
+  return openrouter(modelId);
 }
 
 export function getTitleModel() {
-  if (isTestEnvironment && myProvider) {
-    return myProvider.languageModel("title-model");
-  }
-  return gateway.languageModel(titleModel.id);
+  return openrouter(titleModel.id);
 }

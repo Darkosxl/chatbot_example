@@ -1,14 +1,14 @@
 import type { UserType } from "@/app/(auth)/auth";
 
 type Entitlements = {
-  maxMessagesPerHour: number;
+  maxMessagesTotal: number;
 };
 
 export const entitlementsByUserType: Record<UserType, Entitlements> = {
   guest: {
-    maxMessagesPerHour: 10,
+    maxMessagesTotal: 20,
   },
   regular: {
-    maxMessagesPerHour: 10,
+    maxMessagesTotal: 20,
   },
 };

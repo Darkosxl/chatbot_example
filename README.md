@@ -1,71 +1,50 @@
-<a href="https://chatbot.ai-sdk.dev/demo">
-  <img alt="Chatbot" src="app/(chat)/opengraph-image.png">
-  <h1 align="center">Chatbot</h1>
-</a>
+# DarkWarro
 
-<p align="center">
-    Chatbot (formerly AI Chatbot) is a free, open-source template built with Next.js and the AI SDK that helps you quickly build powerful chatbot applications.
-</p>
+A fast, self-hostable AI chatbot built with Next.js and the AI SDK. Multi-model chat with image input, persistent history, character-by-character streaming, and three built-in tools: live news lookup, LinkedIn profile lookup, and YouTube video summarization.
 
-<p align="center">
-  <a href="https://chatbot.ai-sdk.dev/docs"><strong>Read Docs</strong></a> ·
-  <a href="#features"><strong>Features</strong></a> ·
-  <a href="#model-providers"><strong>Model Providers</strong></a> ·
-  <a href="#deploy-your-own"><strong>Deploy Your Own</strong></a> ·
-  <a href="#running-locally"><strong>Running locally</strong></a>
-</p>
-<br/>
+Forked from [vercel/ai-chatbot](https://github.com/vercel/ai-chatbot), with the artifacts/canvas feature removed, OpenRouter swapped in for multi-model support, and generic Postgres + local file storage so it runs anywhere Docker does — no Vercel account required.
 
 ## Features
 
-- [Next.js](https://nextjs.org) App Router
-  - Advanced routing for seamless navigation and performance
-  - React Server Components (RSCs) and Server Actions for server-side rendering and increased performance
-- [AI SDK](https://ai-sdk.dev/docs/introduction)
-  - Unified API for generating text, structured objects, and tool calls with LLMs
-  - Hooks for building dynamic chat and generative user interfaces
-  - Supports OpenAI, Anthropic, Google, xAI, and other model providers via AI Gateway
-- [shadcn/ui](https://ui.shadcn.com)
-  - Styling with [Tailwind CSS](https://tailwindcss.com)
-  - Component primitives from [Radix UI](https://radix-ui.com) for accessibility and flexibility
-- Data Persistence
-  - [Neon Serverless Postgres](https://vercel.com/marketplace/neon) for saving chat history and user data
-  - [Vercel Blob](https://vercel.com/storage/blob) for efficient file storage
-- [Auth.js](https://authjs.dev)
-  - Simple and secure authentication
-
-## Model Providers
-
-This template uses the [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) to access multiple AI models through a unified interface. Models are configured in `lib/ai/models.ts` with per-model provider routing. Included models: Mistral, Moonshot, DeepSeek, OpenAI, and xAI.
-
-### AI Gateway Authentication
-
-**For Vercel deployments**: Authentication is handled automatically via OIDC tokens.
-
-**For non-Vercel deployments**: You need to provide an AI Gateway API key by setting the `AI_GATEWAY_API_KEY` environment variable in your `.env.local` file.
-
-With the [AI SDK](https://ai-sdk.dev/docs/introduction), you can also switch to direct LLM providers like [OpenAI](https://openai.com), [Anthropic](https://anthropic.com), [Cohere](https://cohere.com/), and [many more](https://ai-sdk.dev/providers/ai-sdk-providers) with just a few lines of code.
-
-## Deploy Your Own
-
-You can deploy your own version of Chatbot to Vercel with one click:
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/templates/next.js/chatbot)
+- **Multi-model chat** via [OpenRouter](https://openrouter.ai) — switch between Gemini, GPT, Claude, and Llama models mid-conversation
+- **Image input** — attach a photo, every listed model supports vision
+- **Persistent chat history** — Postgres-backed, grouped by date, searchable sidebar
+- **Streaming responses** — token-by-token via the AI SDK
+- **Live news lookup** — "show me the last 5 BBC News stories" resolves to real, dated, linked results via [Exa](https://exa.ai)
+- **LinkedIn profile lookup** — by name or URL, via Jina Reader with an Exa fallback
+- **YouTube summarization** — Gemini natively watches the video and produces a structured summary
+- Email/password auth (Auth.js) with automatic guest sessions
+- A 20-message lifetime cap per account, for preview/demo deployments
 
 ## Running locally
 
-You will need to use the environment variables [defined in `.env.example`](.env.example) to run Chatbot. It's recommended you use [Vercel Environment Variables](https://vercel.com/docs/projects/environment-variables) for this, but a `.env` file is all that is necessary.
+1. Copy `.env.example` to `.env.local` and fill in the values (see comments in the file for where to get each key).
+2. Start a local Postgres instance (or point `POSTGRES_URL` at one you already have).
+3. Install dependencies and run migrations:
 
-> Note: You should not commit your `.env` file or it will expose secrets that will allow others to control access to your various AI and authentication provider accounts.
+   ```bash
+   pnpm install
+   pnpm db:migrate
+   pnpm dev
+   ```
 
-1. Install Vercel CLI: `npm i -g vercel`
-2. Link local instance with Vercel and GitHub accounts (creates `.vercel` directory): `vercel link`
-3. Download your environment variables: `vercel env pull`
+4. Open [http://localhost:3000](http://localhost:3000).
+
+## Deploying (Docker / Dokploy)
+
+The included `Dockerfile` builds a self-contained image (Next.js `output: standalone`) that runs migrations on container start, then serves the app. It expects a Postgres database — Dokploy can provision one as a service.
 
 ```bash
-pnpm install
-pnpm db:migrate # Setup database or apply latest database changes
-pnpm dev
+docker compose up --build
 ```
 
-Your app template should now be running on [localhost:3000](http://localhost:3000).
+`docker-compose.yml` starts the app alongside a local Postgres container for a quick end-to-end check before deploying. Uploaded chat images are written to `/app/uploads`; mount a volume there for persistence.
+
+Required environment variables are documented in `.env.example`. `REDIS_URL` is optional — without it the app runs single-instance with no cross-instance IP rate limiting or resumable streams.
+
+## Stack
+
+- [Next.js](https://nextjs.org) App Router, [AI SDK](https://ai-sdk.dev) v7
+- [OpenRouter](https://openrouter.ai) for model access, [Exa](https://exa.ai) for news/LinkedIn search, [Gemini](https://ai.google.dev) for YouTube understanding
+- [Drizzle ORM](https://orm.drizzle.team) + Postgres, [Auth.js](https://authjs.dev)
+- Tailwind CSS v4, shadcn/ui, Streamdown for markdown rendering

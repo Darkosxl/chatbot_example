@@ -1,26 +1,20 @@
 "use client";
 import type { UseChatHelpers } from "@ai-sdk/react";
-import { useCallback } from "react";
 import type { Vote } from "@/lib/db/schema";
 import type { ChatMessage } from "@/lib/types";
 import { cn, sanitizeText } from "@/lib/utils";
 import { MessageContent, MessageResponse } from "../ai-elements/message";
 import { Shimmer } from "../ai-elements/shimmer";
-import {
-  Tool,
-  ToolContent,
-  ToolHeader,
-  ToolInput,
-  ToolOutput,
-} from "../ai-elements/tool";
+import { Tool, ToolContent, ToolHeader, ToolInput } from "../ai-elements/tool";
 import { useDataStream } from "./data-stream-provider";
-import { DocumentToolResult } from "./document";
-import { DocumentPreview } from "./document-preview";
 import { SparklesIcon } from "./icons";
+import { LinkedInCard } from "./linkedin-card";
 import { MessageActions } from "./message-actions";
 import { MessageReasoning } from "./message-reasoning";
+import { NewsCards } from "./news-cards";
 import { PreviewAttachment } from "./preview-attachment";
 import { Weather } from "./weather";
+import { YouTubeSummaryCard } from "./youtube-summary-card";
 
 function WaitingText() {
   const { waitingStatus } = useDataStream();
@@ -39,50 +33,7 @@ function WaitingText() {
   );
 }
 
-function ToolApprovalActions({
-  addToolApprovalResponse,
-  approvalId,
-}: {
-  addToolApprovalResponse: UseChatHelpers<ChatMessage>["addToolApprovalResponse"];
-  approvalId: string;
-}) {
-  const handleDeny = useCallback(() => {
-    addToolApprovalResponse({
-      approved: false,
-      id: approvalId,
-      reason: "User denied weather lookup",
-    });
-  }, [addToolApprovalResponse, approvalId]);
-
-  const handleAllow = useCallback(() => {
-    addToolApprovalResponse({
-      approved: true,
-      id: approvalId,
-    });
-  }, [addToolApprovalResponse, approvalId]);
-
-  return (
-    <div className="flex items-center justify-end gap-2 border-t px-4 py-3">
-      <button
-        className="rounded-md px-3 py-1.5 text-muted-foreground text-sm transition-colors hover:bg-muted hover:text-foreground"
-        onClick={handleDeny}
-        type="button"
-      >
-        Deny
-      </button>
-      <button
-        className="rounded-md bg-primary px-3 py-1.5 text-primary-foreground text-sm transition-colors hover:bg-primary/90"
-        onClick={handleAllow}
-        type="button"
-      >
-        Allow
-      </button>
-    </div>
-  );
-}
-
 const PurePreviewMessage = ({
-  addToolApprovalResponse,
   chatId,
   message,
   vote,
@@ -93,7 +44,6 @@ const PurePreviewMessage = ({
   requiresScrollPadding: _requiresScrollPadding,
   onEdit,
 }: {
-  addToolApprovalResponse: UseChatHelpers<ChatMessage>["addToolApprovalResponse"];
   chatId: string;
   message: ChatMessage;
   vote: Vote | undefined;
@@ -190,12 +140,6 @@ const PurePreviewMessage = ({
 
     if (type === "tool-getWeather") {
       const { toolCallId, state } = part;
-      const approvalId = (part as { approval?: { id: string } }).approval?.id;
-      const isDenied =
-        state === "output-denied" ||
-        (state === "approval-responded" &&
-          (part as { approval?: { approved?: boolean } }).approval?.approved ===
-            false);
       const widthClass = "w-[min(100%,450px)]";
 
       if (state === "output-available") {
@@ -206,135 +150,114 @@ const PurePreviewMessage = ({
         );
       }
 
-      if (isDenied) {
-        return (
-          <div className={widthClass} key={toolCallId}>
-            <Tool className="w-full" defaultOpen={true}>
-              <ToolHeader state="output-denied" type="tool-getWeather" />
-              <ToolContent>
-                <div className="px-4 py-3 text-muted-foreground text-sm">
-                  Weather lookup was denied.
-                </div>
-              </ToolContent>
-            </Tool>
-          </div>
-        );
-      }
-
-      if (state === "approval-responded") {
-        return (
-          <div className={widthClass} key={toolCallId}>
-            <Tool className="w-full" defaultOpen={true}>
-              <ToolHeader state={state} type="tool-getWeather" />
-              <ToolContent>
-                <ToolInput input={part.input} />
-              </ToolContent>
-            </Tool>
-          </div>
-        );
-      }
-
       return (
         <div className={widthClass} key={toolCallId}>
           <Tool className="w-full" defaultOpen={true}>
             <ToolHeader state={state} type="tool-getWeather" />
             <ToolContent>
-              {(state === "input-available" ||
-                state === "approval-requested") && (
-                <ToolInput input={part.input} />
-              )}
-              {state === "approval-requested" && approvalId && (
-                <ToolApprovalActions
-                  addToolApprovalResponse={addToolApprovalResponse}
-                  approvalId={approvalId}
-                />
-              )}
+              {state === "input-available" && <ToolInput input={part.input} />}
             </ToolContent>
           </Tool>
         </div>
       );
     }
 
-    if (type === "tool-createDocument") {
-      const { toolCallId } = part;
+    if (type === "tool-getNews") {
+      const { toolCallId, state } = part;
 
-      if (part.output && "error" in part.output) {
+      if (state === "output-available") {
+        if ("error" in part.output) {
+          return (
+            <div
+              className="w-[min(100%,600px)] rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-destructive text-sm"
+              key={toolCallId}
+            >
+              {String(part.output.error)}
+            </div>
+          );
+        }
         return (
-          <div
-            className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-500 dark:bg-red-950/50"
-            key={toolCallId}
-          >
-            Error creating document: {String(part.output.error)}
+          <div className="w-full" key={toolCallId}>
+            <NewsCards result={part.output} />
           </div>
         );
       }
 
       return (
-        <DocumentPreview
-          isReadonly={isReadonly}
-          key={toolCallId}
-          result={part.output}
-        />
-      );
-    }
-
-    if (type === "tool-updateDocument") {
-      const { toolCallId } = part;
-
-      if (part.output && "error" in part.output) {
-        return (
-          <div
-            className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-500 dark:bg-red-950/50"
-            key={toolCallId}
-          >
-            Error updating document: {String(part.output.error)}
-          </div>
-        );
-      }
-
-      return (
-        <div className="relative" key={toolCallId}>
-          <DocumentPreview
-            args={{ ...part.output, isUpdate: true }}
-            isReadonly={isReadonly}
-            result={part.output}
-          />
+        <div className="w-[min(100%,450px)]" key={toolCallId}>
+          <Tool className="w-full" defaultOpen={false}>
+            <ToolHeader state={state} type="tool-getNews" />
+            <ToolContent>
+              {state === "input-available" && <ToolInput input={part.input} />}
+            </ToolContent>
+          </Tool>
         </div>
       );
     }
 
-    if (type === "tool-requestSuggestions") {
+    if (type === "tool-getLinkedInProfile") {
       const { toolCallId, state } = part;
 
+      if (state === "output-available") {
+        if ("error" in part.output) {
+          return (
+            <div
+              className="w-[min(100%,600px)] rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-destructive text-sm"
+              key={toolCallId}
+            >
+              {String(part.output.error)}
+            </div>
+          );
+        }
+        return (
+          <div className="w-[min(100%,480px)]" key={toolCallId}>
+            <LinkedInCard result={part.output} />
+          </div>
+        );
+      }
+
       return (
-        <Tool
-          className="w-[min(100%,450px)]"
-          defaultOpen={true}
-          key={toolCallId}
-        >
-          <ToolHeader state={state} type="tool-requestSuggestions" />
-          <ToolContent>
-            {state === "input-available" && <ToolInput input={part.input} />}
-            {state === "output-available" && (
-              <ToolOutput
-                errorText={undefined}
-                output={
-                  "error" in part.output ? (
-                    <div className="rounded border p-2 text-red-500">
-                      Error: {String(part.output.error)}
-                    </div>
-                  ) : (
-                    <DocumentToolResult
-                      isReadonly={isReadonly}
-                      result={part.output}
-                      type="request-suggestions"
-                    />
-                  )
-                }
-              />
-            )}
-          </ToolContent>
-        </Tool>
+        <div className="w-[min(100%,450px)]" key={toolCallId}>
+          <Tool className="w-full" defaultOpen={false}>
+            <ToolHeader state={state} type="tool-getLinkedInProfile" />
+            <ToolContent>
+              {state === "input-available" && <ToolInput input={part.input} />}
+            </ToolContent>
+          </Tool>
+        </div>
+      );
+    }
+
+    if (type === "tool-summarizeYouTube") {
+      const { toolCallId, state } = part;
+
+      if (state === "output-available") {
+        if ("error" in part.output) {
+          return (
+            <div
+              className="w-[min(100%,600px)] rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-destructive text-sm"
+              key={toolCallId}
+            >
+              {String(part.output.error)}
+            </div>
+          );
+        }
+        return (
+          <div className="w-[min(100%,560px)]" key={toolCallId}>
+            <YouTubeSummaryCard result={part.output} />
+          </div>
+        );
+      }
+
+      return (
+        <div className="w-[min(100%,450px)]" key={toolCallId}>
+          <Tool className="w-full" defaultOpen={false}>
+            <ToolHeader state={state} type="tool-summarizeYouTube" />
+            <ToolContent>
+              {state === "input-available" && <ToolInput input={part.input} />}
+            </ToolContent>
+          </Tool>
+        </div>
       );
     }
 

@@ -1,11 +1,8 @@
-export const DEFAULT_CHAT_MODEL = "moonshotai/kimi-k2.5";
+export const DEFAULT_CHAT_MODEL = "google/gemini-2.5-flash";
 
 export const titleModel = {
-  description: "Fast model for title generation",
-  gatewayOrder: ["fireworks", "bedrock"],
-  id: "moonshotai/kimi-k2.5",
-  name: "Kimi K2.5",
-  provider: "moonshotai",
+  id: "google/gemini-2.5-flash-lite",
+  name: "Gemini 2.5 Flash Lite",
 };
 
 export type ModelCapabilities = {
@@ -19,134 +16,54 @@ export type ChatModel = {
   name: string;
   provider: string;
   description: string;
-  gatewayOrder?: string[];
-  reasoningEffort?: "none" | "minimal" | "low" | "medium" | "high";
 };
 
+// Every model here supports both tool use and vision, so image input and
+// the feature tools (news, LinkedIn, YouTube, weather) work no matter which
+// one the user picks.
 export const chatModels: ChatModel[] = [
   {
-    description: "Fast and capable model with tool use",
-    gatewayOrder: ["bedrock", "deepinfra"],
-    id: "deepseek/deepseek-v3.2",
-    name: "DeepSeek V3.2",
-    provider: "deepseek",
+    description: "Fast, well-rounded default with vision and tool use",
+    id: "google/gemini-2.5-flash",
+    name: "Gemini 2.5 Flash",
+    provider: "google",
   },
   {
-    description: "Moonshot AI flagship model",
-    gatewayOrder: ["fireworks", "bedrock"],
-    id: "moonshotai/kimi-k2.5",
-    name: "Kimi K2.5",
-    provider: "moonshotai",
-  },
-  {
-    description: "Compact reasoning model",
-    gatewayOrder: ["groq", "bedrock"],
-    id: "openai/gpt-oss-20b",
-    name: "GPT OSS 20B",
+    description: "OpenAI's compact multimodal model",
+    id: "openai/gpt-4o-mini",
+    name: "GPT-4o Mini",
     provider: "openai",
-    reasoningEffort: "low",
   },
   {
-    description: "Open-source 120B parameter model",
-    gatewayOrder: ["fireworks", "bedrock"],
-    id: "openai/gpt-oss-120b",
-    name: "GPT OSS 120B",
+    description: "OpenAI's smallest, fastest reasoning-capable model",
+    id: "openai/gpt-5-nano",
+    name: "GPT-5 Nano",
     provider: "openai",
-    reasoningEffort: "low",
   },
   {
-    description: "Fast non-reasoning model with tool use",
-    gatewayOrder: ["xai"],
-    id: "xai/grok-4.1-fast-non-reasoning",
-    name: "Grok 4.1 Fast",
-    provider: "xai",
+    description: "Anthropic's fast, capable model",
+    id: "anthropic/claude-haiku-4.5",
+    name: "Claude Haiku 4.5",
+    provider: "anthropic",
+  },
+  {
+    description: "Meta's open-weight multimodal model",
+    id: "meta-llama/llama-4-scout",
+    name: "Llama 4 Scout",
+    provider: "meta-llama",
   },
 ];
 
-export async function getCapabilities(): Promise<
-  Record<string, ModelCapabilities>
-> {
-  const results = await Promise.all(
-    chatModels.map(async (model) => {
-      try {
-        const res = await fetch(
-          `https://ai-gateway.vercel.sh/v1/models/${model.id}/endpoints`,
-          { next: { revalidate: 86_400 } }
-        );
-        if (!res.ok) {
-          return [model.id, { reasoning: false, tools: false, vision: false }];
-        }
+const staticCapabilities: ModelCapabilities = {
+  reasoning: false,
+  tools: true,
+  vision: true,
+};
 
-        const json = await res.json();
-        const endpoints = json.data?.endpoints ?? [];
-        const params = new Set(
-          endpoints.flatMap(
-            (e: { supported_parameters?: string[] }) =>
-              e.supported_parameters ?? []
-          )
-        );
-        const inputModalities = new Set(
-          json.data?.architecture?.input_modalities ?? []
-        );
-
-        return [
-          model.id,
-          {
-            reasoning: params.has("reasoning"),
-            tools: params.has("tools"),
-            vision: inputModalities.has("image"),
-          },
-        ];
-      } catch {
-        return [model.id, { reasoning: false, tools: false, vision: false }];
-      }
-    })
+export function getCapabilities(): Record<string, ModelCapabilities> {
+  return Object.fromEntries(
+    chatModels.map((model) => [model.id, staticCapabilities])
   );
-
-  return Object.fromEntries(results);
-}
-
-export const isDemo = process.env.IS_DEMO === "1";
-
-type GatewayModel = {
-  id: string;
-  name: string;
-  type?: string;
-  tags?: string[];
-};
-
-export type GatewayModelWithCapabilities = ChatModel & {
-  capabilities: ModelCapabilities;
-};
-
-export async function getAllGatewayModels(): Promise<
-  GatewayModelWithCapabilities[]
-> {
-  try {
-    const res = await fetch("https://ai-gateway.vercel.sh/v1/models", {
-      next: { revalidate: 86_400 },
-    });
-    if (!res.ok) {
-      return [];
-    }
-
-    const json = await res.json();
-    return (json.data ?? [])
-      .filter((m: GatewayModel) => m.type === "language")
-      .map((m: GatewayModel) => ({
-        capabilities: {
-          reasoning: m.tags?.includes("reasoning") ?? false,
-          tools: m.tags?.includes("tool-use") ?? false,
-          vision: m.tags?.includes("vision") ?? false,
-        },
-        description: "",
-        id: m.id,
-        name: m.name,
-        provider: m.id.split("/")[0],
-      }));
-  } catch {
-    return [];
-  }
 }
 
 export function getActiveModels(): ChatModel[] {
@@ -165,65 +82,3 @@ export const modelsByProvider = chatModels.reduce(
   },
   {} as Record<string, ChatModel[]>
 );
-
-export type ModelAvailability = "healthy" | "impacted" | "unknown";
-
-type GatewayEndpoint = {
-  provider_name?: string;
-  status?: number;
-  uptime_last_15m?: number;
-  uptime_last_1h?: number;
-  latency_last_1h?: {
-    p50?: number;
-    p95?: number;
-  };
-};
-
-const PROVIDER_IMPACTED_UPTIME_THRESHOLD = 99;
-const PROVIDER_IMPACTED_P50_MS = 10_000;
-const PROVIDER_IMPACTED_P95_MS = 30_000;
-
-function isEndpointImpacted(endpoint: GatewayEndpoint) {
-  return (
-    (endpoint.status !== undefined && endpoint.status !== 0) ||
-    (endpoint.uptime_last_15m !== undefined &&
-      endpoint.uptime_last_15m < PROVIDER_IMPACTED_UPTIME_THRESHOLD) ||
-    (endpoint.uptime_last_1h !== undefined &&
-      endpoint.uptime_last_1h < PROVIDER_IMPACTED_UPTIME_THRESHOLD) ||
-    (endpoint.latency_last_1h?.p50 !== undefined &&
-      endpoint.latency_last_1h.p50 > PROVIDER_IMPACTED_P50_MS) ||
-    (endpoint.latency_last_1h?.p95 !== undefined &&
-      endpoint.latency_last_1h.p95 > PROVIDER_IMPACTED_P95_MS)
-  );
-}
-
-export async function getModelAvailability(
-  modelId: string
-): Promise<ModelAvailability> {
-  const model = chatModels.find((item) => item.id === modelId);
-
-  if (!model) {
-    return "unknown";
-  }
-
-  try {
-    const res = await fetch(
-      `https://ai-gateway.vercel.sh/v1/models/${model.id}/endpoints`,
-      { next: { revalidate: 60 } }
-    );
-    if (!res.ok) {
-      return "unknown";
-    }
-
-    const json = await res.json();
-    const endpoints = (json.data?.endpoints ?? []) as GatewayEndpoint[];
-
-    if (endpoints.length === 0) {
-      return "unknown";
-    }
-
-    return endpoints.some(isEndpointImpacted) ? "impacted" : "healthy";
-  } catch {
-    return "unknown";
-  }
-}
