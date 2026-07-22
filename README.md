@@ -1,6 +1,6 @@
 # DarkWarro
 
-A fast, self-hostable AI chatbot built with Next.js and the AI SDK. Multi-model chat with image input, persistent history, character-by-character streaming, and three built-in tools: live news lookup, LinkedIn profile lookup, and YouTube video summarization.
+Chatbot for Exposure AI Academy — a fast, self-hostable AI chatbot built with Next.js and the AI SDK. Multi-model chat with image input, persistent history, character-by-character streaming, and three built-in tools: live news lookup, LinkedIn profile lookup, and YouTube video summarization.
 
 Forked from [vercel/ai-chatbot](https://github.com/vercel/ai-chatbot), with the artifacts/canvas feature removed, OpenRouter swapped in for multi-model support, and generic Postgres + local file storage so it runs anywhere Docker does — no Vercel account required.
 
